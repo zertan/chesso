@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attack-Focused Chess Board</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <style>
+    :root {
+      --light: #f0d9b5;
+      --dark: #b58863;
+      --white-attack: 255, 99, 132;
+      --black-attack: 99, 132, 255;
+      --both-attack: 165, 99, 255;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+
+    main {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      padding: 1.25rem;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+      width: min(1100px, 100%);
+    }
+
+    header {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin: 0;
+      color: #f8fafc;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background: linear-gradient(135deg, #2563eb, #1e3a8a);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 0.6rem 0.9rem;
+      cursor: pointer;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      transition: transform 0.1s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+      box-shadow: 0 10px 25px rgba(37, 99, 235, 0.25);
+    }
+
+    button.secondary {
+      background: linear-gradient(135deg, #64748b, #334155);
+      box-shadow: 0 10px 25px rgba(100, 116, 139, 0.25);
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(37, 99, 235, 0.3);
+    }
+
+    button:active {
+      transform: translateY(0px) scale(0.99);
+      opacity: 0.95;
+    }
+
+    .board-wrap {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 1.25rem;
+      align-items: start;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(40px, 1fr));
+      grid-template-rows: repeat(8, minmax(40px, 1fr));
+      aspect-ratio: 1 / 1;
+      border: 10px solid #1e293b;
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+    }
+
+    .square {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.55);
+      transition: outline 0.15s ease, filter 0.15s ease;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .square.light {
+      background: var(--light);
+    }
+
+    .square.dark {
+      background: var(--dark);
+    }
+
+    .square .overlay {
+      position: absolute;
+      inset: 0;
+      background: transparent;
+      transition: background 0.2s ease;
+    }
+
+    .square .highlight {
+      position: absolute;
+      inset: 4px;
+      border-radius: 8px;
+      border: 2px dashed rgba(255, 255, 255, 0.65);
+      pointer-events: none;
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15);
+    }
+
+    .square .move-target {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(34, 197, 94, 0.75);
+      border: 2px solid rgba(21, 128, 61, 0.8);
+      box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.25);
+      pointer-events: none;
+    }
+
+    .square .meta {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      font-size: 0.65rem;
+      background: rgba(15, 23, 42, 0.55);
+      padding: 2px 6px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      pointer-events: none;
+    }
+
+    .panel {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 1rem;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .panel h2 {
+      margin-top: 0;
+      margin-bottom: 0.75rem;
+      font-size: 1rem;
+      letter-spacing: 0.01em;
+      color: #cbd5e1;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.6rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .pill {
+      background: rgba(148, 163, 184, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      padding: 0.55rem 0.75rem;
+      font-weight: 600;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      color: #cbd5e1;
+    }
+
+    .legend-swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .notation {
+      font-family: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
+      background: rgba(15, 23, 42, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+      max-height: 220px;
+      overflow: auto;
+      color: #e2e8f0;
+    }
+
+    .notation strong {
+      color: #38bdf8;
+    }
+
+    @media (max-width: 960px) {
+      .board-wrap {
+        grid-template-columns: 1fr;
+      }
+
+      .board {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Attack-Focused Chess</h1>
+        <p style="margin: 0; color: #cbd5e1;">Pieces stay hidden—only their attack paths paint the board.</p>
+      </div>
+      <div class="controls">
+        <button id="newGame">New Game</button>
+        <button id="undo" class="secondary">Undo</button>
+      </div>
+    </header>
+
+    <div class="board-wrap">
+      <section class="board" id="board" aria-label="Chessboard showing attack map"></section>
+
+      <section class="panel">
+        <h2>Game + Attack Details</h2>
+        <div class="info-grid">
+          <div class="pill" id="turnDisplay">Turn: White</div>
+          <div class="pill" id="selectionDisplay">No square selected</div>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-swatch" style="background: rgba(var(--white-attack), 0.55);"></span>White control</div>
+          <div class="legend-item"><span class="legend-swatch" style="background: rgba(var(--black-attack), 0.55);"></span>Black control</div>
+          <div class="legend-item"><span class="legend-swatch" style="background: rgba(var(--both-attack), 0.6);"></span>Both sides overlap</div>
+        </div>
+        <h2>Moves</h2>
+        <div class="notation" id="moves"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/chess.js@1.0.0/dist/chess.min.js"></script>
+  <script>
+    const boardEl = document.getElementById('board');
+    const turnDisplay = document.getElementById('turnDisplay');
+    const selectionDisplay = document.getElementById('selectionDisplay');
+    const movesEl = document.getElementById('moves');
+
+    const chess = new Chess();
+    let selectedSquare = null;
+    let moveHints = [];
+
+    function squareToCoords(square) {
+      const file = square.charCodeAt(0) - 'a'.charCodeAt(0);
+      const rank = parseInt(square[1], 10) - 1;
+      return { file, rank };
+    }
+
+    function coordsToSquare(file, rank) {
+      if (file < 0 || file > 7 || rank < 0 || rank > 7) return null;
+      return String.fromCharCode('a'.charCodeAt(0) + file) + (rank + 1);
+    }
+
+    function addAttack(map, square, color) {
+      if (!map[square]) map[square] = { white: 0, black: 0 };
+      if (color === 'w') map[square].white += 1;
+      else map[square].black += 1;
+    }
+
+    function computeAttacks() {
+      const attackMap = {};
+      const directions = {
+        bishop: [
+          [1, 1], [1, -1], [-1, 1], [-1, -1]
+        ],
+        rook: [
+          [1, 0], [-1, 0], [0, 1], [0, -1]
+        ],
+      };
+
+      for (let file = 0; file < 8; file++) {
+        for (let rank = 0; rank < 8; rank++) {
+          const square = coordsToSquare(file, rank);
+          const piece = chess.get(square);
+          if (!piece) continue;
+
+          const color = piece.color;
+          const type = piece.type;
+
+          if (type === 'p') {
+            const forward = color === 'w' ? 1 : -1;
+            const attacks = [
+              coordsToSquare(file + 1, rank + forward),
+              coordsToSquare(file - 1, rank + forward),
+            ].filter(Boolean);
+            attacks.forEach((sq) => addAttack(attackMap, sq, color));
+          } else if (type === 'n') {
+            const knightMoves = [
+              [1, 2], [2, 1], [2, -1], [1, -2],
+              [-1, -2], [-2, -1], [-2, 1], [-1, 2]
+            ];
+            knightMoves.forEach(([df, dr]) => {
+              const target = coordsToSquare(file + df, rank + dr);
+              if (target) addAttack(attackMap, target, color);
+            });
+          } else if (type === 'k') {
+            const kingMoves = [
+              [1, 0], [-1, 0], [0, 1], [0, -1],
+              [1, 1], [1, -1], [-1, 1], [-1, -1]
+            ];
+            kingMoves.forEach(([df, dr]) => {
+              const target = coordsToSquare(file + df, rank + dr);
+              if (target) addAttack(attackMap, target, color);
+            });
+          } else {
+            const slideDirs = [];
+            if (type === 'b' || type === 'q') slideDirs.push(...directions.bishop);
+            if (type === 'r' || type === 'q') slideDirs.push(...directions.rook);
+
+            slideDirs.forEach(([df, dr]) => {
+              let f = file + df;
+              let r = rank + dr;
+              while (f >= 0 && f < 8 && r >= 0 && r < 8) {
+                const target = coordsToSquare(f, r);
+                addAttack(attackMap, target, color);
+                if (chess.get(target)) break;
+                f += df;
+                r += dr;
+              }
+            });
+          }
+        }
+      }
+
+      return attackMap;
+    }
+
+    function updateBoard() {
+      const attackMap = computeAttacks();
+      const squares = boardEl.querySelectorAll('.square');
+
+      squares.forEach((squareEl) => {
+        const square = squareEl.dataset.square;
+        const overlay = squareEl.querySelector('.overlay');
+        const highlight = squareEl.querySelector('.highlight');
+        const targetMarker = squareEl.querySelector('.move-target');
+        const meta = squareEl.querySelector('.meta');
+        const attackInfo = attackMap[square] || { white: 0, black: 0 };
+
+        const total = attackInfo.white + attackInfo.black;
+        let color = 'transparent';
+        if (total > 0) {
+          const alpha = Math.min(0.12 + total * 0.12, 0.9);
+          if (attackInfo.white && attackInfo.black) {
+            color = `rgba(${getBlendedColor(attackInfo)}, ${alpha})`;
+          } else if (attackInfo.white) {
+            color = `rgba(var(--white-attack), ${alpha})`;
+          } else {
+            color = `rgba(var(--black-attack), ${alpha})`;
+          }
+        }
+        overlay.style.background = color;
+
+        if (highlight) highlight.remove();
+        if (targetMarker) targetMarker.remove();
+
+        if (selectedSquare === square) {
+          const h = document.createElement('div');
+          h.className = 'highlight';
+          squareEl.appendChild(h);
+        }
+
+        if (moveHints.includes(square)) {
+          const dot = document.createElement('div');
+          dot.className = 'move-target';
+          squareEl.appendChild(dot);
+        }
+
+        const piece = chess.get(square);
+        if (piece) {
+          meta.textContent = `${piece.color === 'w' ? 'W' : 'B'}${piece.type.toUpperCase()}`;
+        } else {
+          meta.textContent = '';
+        }
+      });
+
+      turnDisplay.textContent = `Turn: ${chess.turn() === 'w' ? 'White' : 'Black'}`;
+      renderMoves();
+    }
+
+    function getBlendedColor(info) {
+      const whiteWeight = info.white;
+      const blackWeight = info.black;
+      const total = whiteWeight + blackWeight;
+      const mix = (w, b) => Math.round((w * whiteWeight + b * blackWeight) / total);
+      const [r1, g1, b1] = [255, 99, 132];
+      const [r2, g2, b2] = [99, 132, 255];
+      return `${mix(r1, r2)}, ${mix(g1, g2)}, ${mix(b1, b2)}`;
+    }
+
+    function renderMoves() {
+      const history = chess.history({ verbose: true });
+      if (!history.length) {
+        movesEl.textContent = 'No moves yet — start exploring the invisible battlefield!';
+        return;
+      }
+
+      let output = '';
+      for (let i = 0; i < history.length; i++) {
+        if (i % 2 === 0) output += `${Math.floor(i / 2) + 1}. `;
+        output += `<strong>${history[i].san}</strong> `;
+      }
+      movesEl.innerHTML = output.trim();
+    }
+
+    function buildBoard() {
+      boardEl.innerHTML = '';
+      for (let rank = 7; rank >= 0; rank--) {
+        for (let file = 0; file < 8; file++) {
+          const square = coordsToSquare(file, rank);
+          const squareEl = document.createElement('div');
+          squareEl.className = `square ${(file + rank) % 2 === 0 ? 'light' : 'dark'}`;
+          squareEl.dataset.square = square;
+
+          const overlay = document.createElement('div');
+          overlay.className = 'overlay';
+          squareEl.appendChild(overlay);
+
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          squareEl.appendChild(meta);
+
+          squareEl.addEventListener('click', () => handleSquareClick(square));
+          boardEl.appendChild(squareEl);
+        }
+      }
+    }
+
+    function handleSquareClick(square) {
+      const piece = chess.get(square);
+      if (!selectedSquare) {
+        if (!piece) {
+          selectionDisplay.textContent = `${square.toUpperCase()}: empty square`;
+          moveHints = [];
+          updateBoard();
+          return;
+        }
+        selectedSquare = square;
+        selectionDisplay.textContent = `${square.toUpperCase()}: ${piece.color === 'w' ? 'White' : 'Black'} ${piece.type.toUpperCase()}`;
+        moveHints = chess.moves({ square, verbose: true }).map((m) => m.to);
+        updateBoard();
+        return;
+      }
+
+      const move = chess.move({ from: selectedSquare, to: square, promotion: 'q' });
+      if (move) {
+        selectionDisplay.textContent = `${move.san} played`;
+      } else if (piece) {
+        selectedSquare = square;
+        selectionDisplay.textContent = `${square.toUpperCase()}: ${piece.color === 'w' ? 'White' : 'Black'} ${piece.type.toUpperCase()}`;
+        moveHints = chess.moves({ square, verbose: true }).map((m) => m.to);
+        updateBoard();
+        return;
+      }
+
+      selectedSquare = null;
+      moveHints = [];
+      updateBoard();
+    }
+
+    document.getElementById('newGame').addEventListener('click', () => {
+      chess.reset();
+      selectedSquare = null;
+      moveHints = [];
+      selectionDisplay.textContent = 'No square selected';
+      updateBoard();
+    });
+
+    document.getElementById('undo').addEventListener('click', () => {
+      chess.undo();
+      selectedSquare = null;
+      moveHints = [];
+      selectionDisplay.textContent = 'No square selected';
+      updateBoard();
+    });
+
+    buildBoard();
+    updateBoard();
+  </script>
+</body>
+</html>
