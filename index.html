@@ -152,8 +152,8 @@
 
     .board {
       display: grid;
-      grid-template-columns: repeat(8, minmax(40px, 1fr));
-      grid-template-rows: repeat(8, minmax(40px, 1fr));
+      grid-template-columns: repeat(var(--board-size, 8), minmax(40px, 1fr));
+      grid-template-rows: repeat(var(--board-size, 8), minmax(40px, 1fr));
       aspect-ratio: 1 / 1;
       border: 10px solid #1e293b;
       border-radius: 16px;
@@ -447,6 +447,11 @@
       <div class="controls">
         <button id="newGame">New Game</button>
         <div class="nav-group">
+          <button id="sizeDown" class="secondary" title="Shrink board">−</button>
+          <div class="pill" id="sizeLabel" style="padding:0.45rem 0.75rem; min-width:110px; justify-content:center;">Size: 8 × 8</div>
+          <button id="sizeUp" class="secondary" title="Grow board">+</button>
+        </div>
+        <div class="nav-group">
           <button id="prevMove" class="secondary" title="Step back one move">◀</button>
           <button id="nextMove" class="secondary" title="Step forward one move">▶</button>
         </div>
@@ -463,19 +468,11 @@
 
     <div class="board-wrap">
       <section class="board-shell" aria-label="Chessboard with coordinates">
-        <div class="file-labels top" aria-hidden="true">
-          <span>A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span><span>G</span><span>H</span>
-        </div>
-        <div class="rank-labels left" aria-hidden="true">
-          <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span>
-        </div>
+        <div class="file-labels top" aria-hidden="true" id="fileTop"></div>
+        <div class="rank-labels left" aria-hidden="true" id="rankLeft"></div>
         <section class="board" id="board" aria-label="Chessboard showing attack map"></section>
-        <div class="rank-labels right" aria-hidden="true">
-          <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span>
-        </div>
-        <div class="file-labels bottom" aria-hidden="true">
-          <span>A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span><span>G</span><span>H</span>
-        </div>
+        <div class="rank-labels right" aria-hidden="true" id="rankRight"></div>
+        <div class="file-labels bottom" aria-hidden="true" id="fileBottom"></div>
       </section>
 
       <section class="panel">
@@ -505,6 +502,10 @@
     import * as ChessModule from 'https://cdn.jsdelivr.net/npm/chess.js@1.4.0/dist/esm/chess.js';
 
     const boardEl = document.getElementById('board');
+    const fileTop = document.getElementById('fileTop');
+    const fileBottom = document.getElementById('fileBottom');
+    const rankLeft = document.getElementById('rankLeft');
+    const rankRight = document.getElementById('rankRight');
     const turnDisplay = document.getElementById('turnDisplay');
     const selectionDisplay = document.getElementById('selectionDisplay');
     const movesEl = document.getElementById('moves');
@@ -514,6 +515,9 @@
     const aiDifficultySelect = document.getElementById('aiDifficulty');
     const prevMoveBtn = document.getElementById('prevMove');
     const nextMoveBtn = document.getElementById('nextMove');
+    const sizeDownBtn = document.getElementById('sizeDown');
+    const sizeUpBtn = document.getElementById('sizeUp');
+    const sizeLabel = document.getElementById('sizeLabel');
 
     const ChessCtor = ChessModule?.Chess || ChessModule?.default || ChessModule;
     if (typeof ChessCtor !== 'function') {
@@ -521,13 +525,7 @@
       throw new Error('Chess.js failed to expose a constructor');
     }
 
-    const chess = new ChessCtor();
-    const requiredApis = ['get', 'moves', 'move', 'history', 'reset', 'turn', 'isGameOver', 'board', 'undo'];
-    const missingApis = requiredApis.filter((fn) => typeof chess[fn] !== 'function');
-    if (missingApis.length) {
-      boardEl.innerHTML = `<div style="padding:1rem; color:#ef4444;">Chess.js 1.4.0 is missing expected APIs (${missingApis.join(', ')}). Please reload or update the library reference.</div>`;
-      throw new Error('Chess.js API mismatch');
-    }
+    let chess = createGame(boardSize);
     const aiColor = 'b';
     let aiDifficulty = 'medium';
     let selectedSquare = null;
@@ -540,16 +538,224 @@
     let historyIndex = 0;
     let hoverTarget = null;
     let pendingAnimation = null;
+    const allowedSizes = [6, 8, 9, 10];
+    let boardSize = 8;
+
+    class VariantGame {
+      constructor(size) {
+        this.size = size;
+        this.historyStack = [];
+        this.reset();
+      }
+
+      reset() {
+        this.boardMap = new Map();
+        const layout = getInitialLayout(this.size);
+        layout.forEach(({ square, piece }) => {
+          this.boardMap.set(square, { ...piece });
+        });
+        this.turnColor = 'w';
+        this.historyStack = [];
+      }
+
+      get(square) {
+        return this.boardMap.get(square) || null;
+      }
+
+      turn() {
+        return this.turnColor;
+      }
+
+      board() {
+        const rows = [];
+        for (let r = this.size - 1; r >= 0; r--) {
+          const row = [];
+          for (let f = 0; f < this.size; f++) {
+            row.push(this.get(coordsToSquare(f, r)));
+          }
+          rows.push(row);
+        }
+        return rows;
+      }
+
+      moves({ square, verbose } = {}) {
+        const targets = [];
+        const squaresToScan = square ? [square] : Array.from(this.boardMap.keys());
+        squaresToScan.forEach((sq) => {
+          const piece = this.get(sq);
+          if (!piece || piece.color !== this.turnColor) return;
+          generateLegalMovesForPiece(sq, piece, this.size, this.boardMap).forEach((m) => targets.push(m));
+        });
+        return verbose ? targets : targets.map((m) => `${m.from}-${m.to}`);
+      }
+
+      move(moveInput) {
+        const { from, to, promotion } = moveInput;
+        const legal = this.moves({ square: from, verbose: true });
+        const match = legal.find((m) => m.to === to);
+        if (!match) return null;
+        const captured = this.get(to);
+        const piece = this.get(from);
+        const updated = { ...piece };
+        const promoRank = updated.color === 'w' ? this.size - 1 : 0;
+        if (updated.type === 'p' && squareToCoords(to).rank === promoRank) {
+          updated.type = promotion || 'q';
+        }
+        this.boardMap.delete(from);
+        this.boardMap.set(to, updated);
+        this.turnColor = this.turnColor === 'w' ? 'b' : 'w';
+        const moveRecord = {
+          from,
+          to,
+          piece: piece.type,
+          color: piece.color,
+          captured: captured?.type,
+          san: `${from}${captured ? 'x' : '-'}${to}`,
+          promotion: promotion || (piece.type === 'p' && updated.type !== piece.type ? updated.type : undefined),
+          previousTurn: this.turnColor === 'w' ? 'b' : 'w',
+        };
+        this.historyStack.push({ move: moveRecord, capturedPiece: captured ? { ...captured } : null, fromSnapshot: piece });
+        return moveRecord;
+      }
+
+      undo() {
+        const entry = this.historyStack.pop();
+        if (!entry) return null;
+        const { move, capturedPiece, fromSnapshot } = entry;
+        this.boardMap.delete(move.to);
+        this.boardMap.set(move.from, { ...fromSnapshot });
+        if (capturedPiece) {
+          this.boardMap.set(move.to, capturedPiece);
+        }
+        this.turnColor = move.previousTurn;
+        return move;
+      }
+
+      isGameOver() {
+        return false;
+      }
+    }
+
+    function createGame(size) {
+      if (size === 8) {
+        const chess = new ChessCtor();
+        const requiredApis = ['get', 'moves', 'move', 'history', 'reset', 'turn', 'isGameOver', 'board', 'undo'];
+        const missingApis = requiredApis.filter((fn) => typeof chess[fn] !== 'function');
+        if (missingApis.length) {
+          boardEl.innerHTML = `<div style="padding:1rem; color:#ef4444;">Chess.js 1.4.0 is missing expected APIs (${missingApis.join(', ')}). Please reload or update the library reference.</div>`;
+          throw new Error('Chess.js API mismatch');
+        }
+        return chess;
+      }
+      return new VariantGame(size);
+    }
 
     function squareToCoords(square) {
       const file = square.charCodeAt(0) - 'a'.charCodeAt(0);
-      const rank = parseInt(square[1], 10) - 1;
+      const rank = parseInt(square.slice(1), 10) - 1;
       return { file, rank };
     }
 
     function coordsToSquare(file, rank) {
-      if (file < 0 || file > 7 || rank < 0 || rank > 7) return null;
+      if (file < 0 || file >= boardSize || rank < 0 || rank >= boardSize) return null;
       return String.fromCharCode('a'.charCodeAt(0) + file) + (rank + 1);
+    }
+
+    function getInitialLayout(size) {
+      const bases = {
+        6: ['r', 'n', 'b', 'q', 'k', 'r'],
+        8: ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
+        9: ['r', 'n', 'b', 'q', 'k', 'a', 'b', 'n', 'r'],
+        10: ['r', 'n', 'b', 'q', 'k', 'c', 'b', 'a', 'n', 'r'],
+      };
+      const base = bases[size] || bases[8];
+      const layout = [];
+      base.forEach((type, idx) => {
+        const file = idx;
+        layout.push({ square: coordsToSquare(file, 0), piece: { type, color: 'w' } });
+        layout.push({ square: coordsToSquare(file, size - 1), piece: { type, color: 'b' } });
+      });
+      for (let f = 0; f < base.length; f++) {
+        layout.push({ square: coordsToSquare(f, 1), piece: { type: 'p', color: 'w' } });
+        layout.push({ square: coordsToSquare(f, size - 2), piece: { type: 'p', color: 'b' } });
+      }
+      return layout;
+    }
+
+    function generateLegalMovesForPiece(square, piece, size, boardMap) {
+      const { file, rank } = squareToCoords(square);
+      const color = piece.color;
+      const moves = [];
+      const forward = color === 'w' ? 1 : -1;
+      const startRank = color === 'w' ? 1 : size - 2;
+      const promoRank = color === 'w' ? size - 1 : 0;
+
+      const addIfValid = (f, r, captureOnly = false) => {
+        const target = coordsToSquare(f, r);
+        if (!target) return;
+        const occupant = boardMap.get(target);
+        if (occupant && occupant.color === color) return;
+        if (captureOnly && !occupant) return;
+        moves.push({ from: square, to: target, color, piece: piece.type, captured: occupant?.type });
+      };
+
+      if (piece.type === 'p') {
+        addIfValid(file + 1, rank + forward, true);
+        addIfValid(file - 1, rank + forward, true);
+        const oneForward = coordsToSquare(file, rank + forward);
+        if (oneForward && !boardMap.get(oneForward)) {
+          moves.push({ from: square, to: oneForward, color, piece: piece.type });
+          const twoForward = coordsToSquare(file, rank + forward * 2);
+          if (rank === startRank && twoForward && !boardMap.get(twoForward)) {
+            moves.push({ from: square, to: twoForward, color, piece: piece.type });
+          }
+        }
+      } else {
+        const knightMoves = [
+          [1, 2], [2, 1], [2, -1], [1, -2],
+          [-1, -2], [-2, -1], [-2, 1], [-1, 2]
+        ];
+        const kingMoves = [
+          [1, 0], [-1, 0], [0, 1], [0, -1],
+          [1, 1], [1, -1], [-1, 1], [-1, -1]
+        ];
+        const pushKnight = () => knightMoves.forEach(([df, dr]) => addIfValid(file + df, rank + dr));
+        const pushKing = () => kingMoves.forEach(([df, dr]) => addIfValid(file + df, rank + dr));
+
+        if (piece.type === 'n') {
+          pushKnight();
+        } else if (piece.type === 'k') {
+          pushKing();
+        } else {
+          const slideDirs = [];
+          if (piece.type === 'b' || piece.type === 'q' || piece.type === 'a') slideDirs.push([1, 1], [1, -1], [-1, 1], [-1, -1]);
+          if (piece.type === 'r' || piece.type === 'q' || piece.type === 'c') slideDirs.push([1, 0], [-1, 0], [0, 1], [0, -1]);
+
+          slideDirs.forEach(([df, dr]) => {
+            let f = file + df;
+            let r = rank + dr;
+            while (true) {
+              const target = coordsToSquare(f, r);
+              if (!target) break;
+              const occupant = boardMap.get(target);
+              if (!occupant) {
+                moves.push({ from: square, to: target, color, piece: piece.type });
+              } else {
+                if (occupant.color !== color) moves.push({ from: square, to: target, color, piece: piece.type, captured: occupant.type });
+                break;
+              }
+              f += df;
+              r += dr;
+            }
+          });
+
+          if (piece.type === 'a' || piece.type === 'c') {
+            pushKnight();
+          }
+        }
+      }
+
+      return moves.map((m) => ({ ...m, san: `${m.from}${m.captured ? 'x' : '-'}${m.to}` }));
     }
 
     function addAttack(map, square, color, source) {
@@ -612,13 +818,13 @@
         kingMoves.forEach(([df, dr]) => pushAttack(file + df, rank + dr));
       } else {
         const directions = [];
-        if (type === 'b' || type === 'q') directions.push([1, 1], [1, -1], [-1, 1], [-1, -1]);
-        if (type === 'r' || type === 'q') directions.push([1, 0], [-1, 0], [0, 1], [0, -1]);
+        if (type === 'b' || type === 'q' || type === 'a') directions.push([1, 1], [1, -1], [-1, 1], [-1, -1]);
+        if (type === 'r' || type === 'q' || type === 'c') directions.push([1, 0], [-1, 0], [0, 1], [0, -1]);
 
         directions.forEach(([df, dr]) => {
           let f = file + df;
           let r = rank + dr;
-          while (f >= 0 && f < 8 && r >= 0 && r < 8) {
+          while (f >= 0 && f < boardSize && r >= 0 && r < boardSize) {
             const target = coordsToSquare(f, r);
             addAttack(map, target, color, square);
             if (chess.get(target)) break;
@@ -626,6 +832,14 @@
             r += dr;
           }
         });
+
+        if (type === 'a' || type === 'c') {
+          const knightMoves = [
+            [1, 2], [2, 1], [2, -1], [1, -2],
+            [-1, -2], [-2, -1], [-2, 1], [-1, 2]
+          ];
+          knightMoves.forEach(([df, dr]) => pushAttack(file + df, rank + dr));
+        }
       }
 
       return map;
@@ -642,8 +856,8 @@
         ],
       };
 
-      for (let file = 0; file < 8; file++) {
-        for (let rank = 0; rank < 8; rank++) {
+      for (let file = 0; file < boardSize; file++) {
+        for (let rank = 0; rank < boardSize; rank++) {
           const square = coordsToSquare(file, rank);
           const piece = chess.get(square);
           if (!piece) continue;
@@ -678,13 +892,13 @@
             });
           } else {
             const slideDirs = [];
-            if (type === 'b' || type === 'q') slideDirs.push(...directions.bishop);
-            if (type === 'r' || type === 'q') slideDirs.push(...directions.rook);
+            if (type === 'b' || type === 'q' || type === 'a') slideDirs.push(...directions.bishop);
+            if (type === 'r' || type === 'q' || type === 'c') slideDirs.push(...directions.rook);
 
             slideDirs.forEach(([df, dr]) => {
               let f = file + df;
               let r = rank + dr;
-              while (f >= 0 && f < 8 && r >= 0 && r < 8) {
+              while (f >= 0 && f < boardSize && r >= 0 && r < boardSize) {
                 const target = coordsToSquare(f, r);
                 addAttack(attackMap, target, color, square);
                 if (chess.get(target)) break;
@@ -692,6 +906,17 @@
                 r += dr;
               }
             });
+
+            if (type === 'a' || type === 'c') {
+              const knightMoves = [
+                [1, 2], [2, 1], [2, -1], [1, -2],
+                [-1, -2], [-2, -1], [-2, 1], [-1, 2]
+              ];
+              knightMoves.forEach(([df, dr]) => {
+                const target = coordsToSquare(file + df, rank + dr);
+                if (target) addAttack(attackMap, target, color, square);
+              });
+            }
           }
         }
       }
@@ -702,8 +927,8 @@
     function findAttackingPieces() {
       const attackers = new Set();
 
-      for (let file = 0; file < 8; file++) {
-        for (let rank = 0; rank < 8; rank++) {
+      for (let file = 0; file < boardSize; file++) {
+        for (let rank = 0; rank < boardSize; rank++) {
           const square = coordsToSquare(file, rank);
           const piece = chess.get(square);
           if (!piece) continue;
@@ -854,10 +1079,10 @@
     function getUnicodePiece(piece) {
       const symbols = {
         w: {
-          p: '♙', r: '♖', n: '♘', b: '♗', q: '♕', k: '♔'
+          p: '♙', r: '♖', n: '♘', b: '♗', q: '♕', k: '♔', a: '♗', c: '♜'
         },
         b: {
-          p: '♟', r: '♜', n: '♞', b: '♝', q: '♛', k: '♚'
+          p: '♟', r: '♜', n: '♞', b: '♝', q: '♛', k: '♚', a: '♝', c: '♜'
         },
       };
       return symbols[piece.color][piece.type] || '';
@@ -878,10 +1103,25 @@
       movesEl.innerHTML = `${output.trim()} <span style="color:#cbd5e1; font-weight:600;">(showing move ${historyIndex}/${moveHistory.length})</span>`;
     }
 
+    function renderCoordinateLabels() {
+      const files = Array.from({ length: boardSize }, (_, i) => String.fromCharCode('A'.charCodeAt(0) + i));
+      const ranks = Array.from({ length: boardSize }, (_, i) => boardSize - i);
+      fileTop.innerHTML = files.map((f) => `<span>${f}</span>`).join('');
+      fileBottom.innerHTML = files.map((f) => `<span>${f}</span>`).join('');
+      rankLeft.innerHTML = ranks.map((r) => `<span>${r}</span>`).join('');
+      rankRight.innerHTML = ranks.map((r) => `<span>${r}</span>`).join('');
+      fileTop.style.gridTemplateColumns = `repeat(${boardSize}, 1fr)`;
+      fileBottom.style.gridTemplateColumns = `repeat(${boardSize}, 1fr)`;
+      rankLeft.style.gridTemplateRows = `repeat(${boardSize}, 1fr)`;
+      rankRight.style.gridTemplateRows = `repeat(${boardSize}, 1fr)`;
+      boardEl.style.setProperty('--board-size', boardSize);
+    }
+
     function buildBoard() {
+      renderCoordinateLabels();
       boardEl.innerHTML = '';
-      for (let rank = 7; rank >= 0; rank--) {
-        for (let file = 0; file < 8; file++) {
+      for (let rank = boardSize - 1; rank >= 0; rank--) {
+        for (let file = 0; file < boardSize; file++) {
           const square = coordsToSquare(file, rank);
           const squareEl = document.createElement('div');
           squareEl.className = `square ${(file + rank) % 2 === 0 ? 'light' : 'dark'}`;
@@ -1078,11 +1318,11 @@
     }
 
     function evaluateBoard() {
-      const values = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+      const values = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0, a: 5, c: 7 };
       let score = 0;
       const boardState = chess.board();
-      for (let r = 0; r < 8; r++) {
-        for (let f = 0; f < 8; f++) {
+      for (let r = 0; r < boardSize; r++) {
+        for (let f = 0; f < boardSize; f++) {
           const piece = boardState[r][f];
           if (!piece) continue;
           const value = values[piece.type] || 0;
@@ -1172,7 +1412,7 @@
       loadHistoryPosition(historyIndex + 1);
     });
 
-    document.getElementById('newGame').addEventListener('click', () => {
+    function resetGameState() {
       chess.reset();
       moveHistory = [];
       historyIndex = 0;
@@ -1182,6 +1422,27 @@
       aiThinking = false;
       selectionDisplay.textContent = 'No square selected';
       updateBoard();
+    }
+
+    document.getElementById('newGame').addEventListener('click', resetGameState);
+
+    function setBoardSize(newSize) {
+      if (!allowedSizes.includes(newSize)) return;
+      boardSize = newSize;
+      sizeLabel.textContent = `Size: ${boardSize} × ${boardSize}`;
+      chess = createGame(boardSize);
+      buildBoard();
+      resetGameState();
+    }
+
+    sizeDownBtn.addEventListener('click', () => {
+      const idx = allowedSizes.indexOf(boardSize);
+      if (idx > 0) setBoardSize(allowedSizes[idx - 1]);
+    });
+
+    sizeUpBtn.addEventListener('click', () => {
+      const idx = allowedSizes.indexOf(boardSize);
+      if (idx < allowedSizes.length - 1) setBoardSize(allowedSizes[idx + 1]);
     });
 
     buildBoard();
