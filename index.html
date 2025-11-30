@@ -291,6 +291,13 @@
       border-radius: 999px;
     }
 
+    .square .piece.hover-offense {
+      outline: 2px solid rgba(147, 51, 234, 0.95);
+      outline-offset: 4px;
+      box-shadow: 0 0 14px rgba(147, 51, 234, 0.65);
+      border-radius: 999px;
+    }
+
     .square .highlight {
       position: absolute;
       inset: 4px;
@@ -532,6 +539,7 @@
     let moveHistory = [];
     let historyIndex = 0;
     let hoverTarget = null;
+    let pendingAnimation = null;
 
     function squareToCoords(square) {
       const file = square.charCodeAt(0) - 'a'.charCodeAt(0);
@@ -553,6 +561,23 @@
         map[square].black += 1;
         map[square].blackSources.add(source);
       }
+    }
+
+    function queueMoveAnimation(from, to) {
+      const fromSquareEl = boardEl.querySelector(`.square[data-square="${from}"]`);
+      const toSquareEl = boardEl.querySelector(`.square[data-square="${to}"]`);
+      if (!fromSquareEl || !toSquareEl) {
+        pendingAnimation = null;
+        return;
+      }
+
+      const fromRect = fromSquareEl.getBoundingClientRect();
+      const toRect = toSquareEl.getBoundingClientRect();
+      pendingAnimation = {
+        to,
+        dx: fromRect.left - toRect.left,
+        dy: fromRect.top - toRect.top,
+      };
     }
 
     function computePieceAttacks(square) {
@@ -703,11 +728,28 @@
         : (selectedSquare ? computePieceAttacks(selectedSquare) : {});
       const attackerSet = highlightActiveAttackers ? findAttackingPieces() : new Set();
       const hoveredAttackerSet = new Set();
+      const hoverFriendlyTargets = new Set();
+      const selectedPiece = selectedSquare ? chess.get(selectedSquare) : null;
+      const selectedColor = selectedPiece?.color;
 
-      if (hoverTarget && fullAttackMap[hoverTarget]) {
+      if (hoverTarget && fullAttackMap[hoverTarget] && selectedColor) {
         const { whiteSources = new Set(), blackSources = new Set() } = fullAttackMap[hoverTarget];
-        whiteSources.forEach((sq) => hoveredAttackerSet.add(sq));
-        blackSources.forEach((sq) => hoveredAttackerSet.add(sq));
+        const opponentSources = selectedColor === 'w' ? blackSources : whiteSources;
+        opponentSources.forEach((sq) => hoveredAttackerSet.add(sq));
+
+        const attemptedMove = chess.move({ from: selectedSquare, to: hoverTarget, promotion: 'q' });
+        if (attemptedMove) {
+          const movedAttackMap = computePieceAttacks(hoverTarget);
+          Object.keys(movedAttackMap).forEach((target) => {
+            const targetPiece = chess.get(target);
+            if (!targetPiece || targetPiece.color === selectedColor) return;
+            const attackingColor = selectedColor === 'w' ? 'white' : 'black';
+            if (movedAttackMap[target][attackingColor]) {
+              hoverFriendlyTargets.add(target);
+            }
+          });
+          chess.undo();
+        }
       }
 
       const squares = boardEl.querySelectorAll('.square');
@@ -760,12 +802,14 @@
           pieceEl.classList.toggle('threatened', threatened);
           pieceEl.classList.toggle('attacker', highlightActiveAttackers && attackerSet.has(square));
           pieceEl.classList.toggle('hover-attacker', Boolean(hoverTarget) && hoveredAttackerSet.has(square));
+          pieceEl.classList.toggle('hover-offense', Boolean(hoverTarget) && hoverFriendlyTargets.has(square));
         } else {
           pieceEl.textContent = '';
           pieceEl.style.visibility = 'hidden';
           pieceEl.classList.remove('threatened');
           pieceEl.classList.remove('attacker');
           pieceEl.classList.remove('hover-attacker');
+          pieceEl.classList.remove('hover-offense');
         }
 
         if (total > 0 && (!showDiffOnlyWhenOccupied || piece)) {
@@ -781,6 +825,20 @@
 
       turnDisplay.textContent = `Turn: ${chess.turn() === 'w' ? 'White' : 'Black'}`;
       renderMoves();
+
+      if (pendingAnimation) {
+        const targetPiece = boardEl.querySelector(`.square[data-square="${pendingAnimation.to}"] .piece`);
+        if (targetPiece) {
+          targetPiece.animate(
+            [
+              { transform: `translate(${pendingAnimation.dx}px, ${pendingAnimation.dy}px)` },
+              { transform: 'translate(0, 0)' },
+            ],
+            { duration: 200, easing: 'linear' }
+          );
+        }
+        pendingAnimation = null;
+      }
     }
 
     function getBlendedColor(info) {
@@ -868,6 +926,7 @@
       selectedSquare = null;
       moveHints = [];
       hoverTarget = null;
+      pendingAnimation = null;
       aiThinking = false;
       selectionDisplay.textContent = historyIndex === moveHistory.length
         ? 'No square selected'
@@ -918,6 +977,8 @@
         return;
       }
 
+      pendingAnimation = null;
+      queueMoveAnimation(selectedSquare, square);
       const move = chess.move({ from: selectedSquare, to: square, promotion: 'q' });
       if (move) {
         selectionDisplay.textContent = `${move.san} played`;
@@ -928,7 +989,11 @@
         updateBoard();
         maybeAIMove();
         return;
-      } else if (piece) {
+      }
+
+      pendingAnimation = null;
+
+      if (piece) {
         selectedSquare = square;
         selectionDisplay.textContent = `${square.toUpperCase()}: ${piece.color === 'w' ? 'White' : 'Black'} ${piece.type.toUpperCase()}`;
         moveHints = chess.moves({ square, verbose: true }).map((m) => m.to);
@@ -940,6 +1005,7 @@
       selectedSquare = null;
       moveHints = [];
       hoverTarget = null;
+      pendingAnimation = null;
       updateBoard();
     }
 
@@ -971,6 +1037,8 @@
       setTimeout(() => {
         const move = pickAIMove();
         if (move) {
+          pendingAnimation = null;
+          queueMoveAnimation(move.from, move.to);
           chess.move(move);
           recordMove(move);
           selectionDisplay.textContent = `AI played ${move.san}`;
