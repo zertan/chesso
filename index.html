@@ -315,21 +315,19 @@
   </main>
 
   <script type="module">
-    import chessJs from 'https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm';
+    import { Chess } from 'https://cdn.jsdelivr.net/npm/chess.js@1.4.0/dist/esm/chess.js';
 
     const boardEl = document.getElementById('board');
     const turnDisplay = document.getElementById('turnDisplay');
     const selectionDisplay = document.getElementById('selectionDisplay');
     const movesEl = document.getElementById('moves');
 
-    const ChessLib = chessJs?.Chess || chessJs;
-
-    if (!ChessLib) {
+    if (typeof Chess !== 'function') {
       boardEl.innerHTML = '<div style="padding:1rem; color:#ef4444;">Chess.js failed to load. Please check your connection and refresh.</div>';
       throw new Error('Chess.js failed to load');
     }
 
-    const chess = new ChessLib();
+    const chess = new Chess();
     let selectedSquare = null;
     let moveHints = [];
 
