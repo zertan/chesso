@@ -525,7 +525,6 @@
       throw new Error('Chess.js failed to expose a constructor');
     }
 
-    let chess = createGame(boardSize);
     const aiColor = 'b';
     let aiDifficulty = 'medium';
     let selectedSquare = null;
@@ -540,6 +539,7 @@
     let pendingAnimation = null;
     const allowedSizes = [6, 8, 9, 10];
     let boardSize = 8;
+    let chess = createGame(boardSize);
 
     class VariantGame {
       constructor(size) {
