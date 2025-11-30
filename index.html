@@ -316,19 +316,26 @@
   </main>
 
   <script type="module">
-    import { Chess } from 'https://cdn.jsdelivr.net/npm/chess.js@1.4.0/dist/esm/chess.js';
+    import * as ChessModule from 'https://cdn.jsdelivr.net/npm/chess.js@1.4.0/dist/esm/chess.js';
 
     const boardEl = document.getElementById('board');
     const turnDisplay = document.getElementById('turnDisplay');
     const selectionDisplay = document.getElementById('selectionDisplay');
     const movesEl = document.getElementById('moves');
 
-    if (typeof Chess !== 'function') {
-      boardEl.innerHTML = '<div style="padding:1rem; color:#ef4444;">Chess.js failed to load. Please check your connection and refresh.</div>';
-      throw new Error('Chess.js failed to load');
+    const ChessCtor = ChessModule?.Chess || ChessModule?.default || ChessModule;
+    if (typeof ChessCtor !== 'function') {
+      boardEl.innerHTML = '<div style="padding:1rem; color:#ef4444;">Chess.js 1.4.0 failed to load a Chess constructor. Please check your connection and refresh.</div>';
+      throw new Error('Chess.js failed to expose a constructor');
     }
 
-    const chess = new Chess();
+    const chess = new ChessCtor();
+    const requiredApis = ['get', 'moves', 'move', 'history', 'reset', 'undo', 'turn', 'isGameOver'];
+    const missingApis = requiredApis.filter((fn) => typeof chess[fn] !== 'function');
+    if (missingApis.length) {
+      boardEl.innerHTML = `<div style="padding:1rem; color:#ef4444;">Chess.js 1.4.0 is missing expected APIs (${missingApis.join(', ')}). Please reload or update the library reference.</div>`;
+      throw new Error('Chess.js API mismatch');
+    }
     const aiColor = 'b';
     let selectedSquare = null;
     let moveHints = [];
