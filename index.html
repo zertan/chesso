@@ -139,14 +139,14 @@
     .square .piece {
       position: relative;
       z-index: 1;
-      font-size: 1.25rem;
+      font-size: 1.15rem;
       opacity: 0.82;
       filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
-      padding: 6px;
-      border-radius: 50%;
-      background: rgba(15, 23, 42, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      min-width: 30px;
+      padding: 0;
+      border-radius: 0;
+      background: transparent;
+      border: none;
+      min-width: 0;
       text-align: center;
     }
 
@@ -187,15 +187,39 @@
       top: 4px;
       left: 4px;
       font-size: 0.7rem;
-      background: rgba(15, 23, 42, 0.75);
+      background: rgba(15, 23, 42, 0.78);
       padding: 2px 6px;
       border-radius: 8px;
       border: 1px solid rgba(255, 255, 255, 0.12);
       color: #e2e8f0;
-      min-width: 18px;
+      min-width: 38px;
       text-align: center;
       pointer-events: none;
       box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+      display: grid;
+      grid-template-columns: repeat(3, auto);
+      gap: 4px;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .attack-count .count {
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .attack-count .white-count {
+      color: rgb(var(--white-attack));
+    }
+
+    .attack-count .black-count {
+      color: rgb(var(--black-attack));
+    }
+
+    .attack-count .diff {
+      color: #f8fafc;
+      font-weight: 600;
+      opacity: 0.85;
     }
 
     .panel {
@@ -439,8 +463,9 @@
         const meta = squareEl.querySelector('.meta');
         const attackCount = squareEl.querySelector('.attack-count');
         const attackInfo = attackMap[square] || { white: 0, black: 0 };
-
-        const total = attackInfo.white + attackInfo.black;
+        const whiteAttack = attackInfo.white || 0;
+        const blackAttack = attackInfo.black || 0;
+        const total = whiteAttack + blackAttack;
         let color = 'transparent';
         if (total > 0) {
           const alpha = Math.min(0.12 + total * 0.12, 0.9);
@@ -481,8 +506,18 @@
           pieceEl.style.visibility = 'hidden';
         }
 
-        attackCount.textContent = total > 0 ? total : '';
-        attackCount.style.visibility = total > 0 ? 'visible' : 'hidden';
+        if (total > 0) {
+          const diff = whiteAttack - blackAttack;
+          attackCount.innerHTML = `
+            <span class="count white-count">${whiteAttack}</span>
+            <span class="diff">${diff > 0 ? `+${diff}` : diff}</span>
+            <span class="count black-count">${blackAttack}</span>
+          `;
+          attackCount.style.visibility = 'visible';
+        } else {
+          attackCount.innerHTML = '';
+          attackCount.style.visibility = 'hidden';
+        }
       });
 
       turnDisplay.textContent = `Turn: ${chess.turn() === 'w' ? 'White' : 'Black'}`;

@@ -16,4 +16,4 @@ Color legend:
 - Blue tint: squares controlled by Black.
 - Purple tint: overlapping control from both sides.
 - Deeper shading means multiple pieces aim at the same square.
-- Number tags show how many pieces (from either side) currently attack each square.
+- Attack badges show white and black attack counts side-by-side (pink for White, blue for Black) with the center value showing the white-minus-black edge on that square.
