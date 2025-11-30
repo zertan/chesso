@@ -6,12 +6,12 @@ A minimalist chess experience that foregrounds control. Small, shaded pieces sit
 Open `index.html` in your browser. No build tools required.
 
 ## Playing
-- Click your piece, then click any highlighted destination to move it.
+- Click your piece, then click any highlighted destination to move it. Hover over a legal destination to also highlight every piece currently attacking that square.
 - Click the same square again to deselect if you change your mind.
-- The black side auto-plays with a simple capture-seeking AI after each of your moves.
-- Use **Undo** to step back (it undoes your move and the AI reply) or **New Game** to reset the position.
+- The black side auto-plays with a selectable AI (Easy / **Medium** default / Hard). Medium favors captures and checks; Hard adds a short lookahead search.
+- Browse the game so far with the ◀/▶ arrows, or hit **New Game** to reset the position and the history.
 - Any piece that currently sits inside an opposing attack path is ringed in green so you can spot threats immediately.
-- Turn on/off full-board shading, per-square numbers on occupied attacked squares, and rings around pieces currently aiming at an enemy using the panel checkboxes.
+- Turn on/off full-board shading, per-square numbers on occupied attacked squares, rings around pieces currently aiming at an enemy, and diff-only badges using the panel checkboxes.
 
 Color legend:
 - Pink/red tint: squares controlled by White.
