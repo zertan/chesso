@@ -7,6 +7,7 @@ Open `index.html` in your browser. No build tools required.
 
 ## Playing
 - Click your piece, then click any highlighted destination to move it.
+- Click the same square again to deselect if you change your mind.
 - The black side auto-plays with a simple capture-seeking AI after each of your moves.
 - Use **Undo** to step back (it undoes your move and the AI reply) or **New Game** to reset the position.
 

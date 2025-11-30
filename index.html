@@ -581,6 +581,14 @@
         return;
       }
 
+      if (selectedSquare === square) {
+        selectedSquare = null;
+        moveHints = [];
+        selectionDisplay.textContent = 'No square selected';
+        updateBoard();
+        return;
+      }
+
       const move = chess.move({ from: selectedSquare, to: square, promotion: 'q' });
       if (move) {
         selectionDisplay.textContent = `${move.san} played`;
