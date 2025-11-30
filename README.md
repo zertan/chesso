@@ -11,10 +11,11 @@ Open `index.html` in your browser. No build tools required.
 - The black side auto-plays with a simple capture-seeking AI after each of your moves.
 - Use **Undo** to step back (it undoes your move and the AI reply) or **New Game** to reset the position.
 - Any piece that currently sits inside an opposing attack path is ringed in green so you can spot threats immediately.
+- Turn on/off full-board shading, per-square numbers on occupied attacked squares, and rings around pieces currently aiming at an enemy using the panel checkboxes.
 
 Color legend:
 - Pink/red tint: squares controlled by White.
 - Blue tint: squares controlled by Black.
 - Purple tint: overlapping control from both sides.
 - Deeper shading means multiple pieces aim at the same square.
-- Attack badges show white and black attack counts side-by-side (pink for White, blue for Black) with the center value showing the white-minus-black edge on that square.
+- Attack badges now show only the white-minus-black difference (red for White’s edge, blue for Black’s) and can be limited to occupied attacked squares with the checkbox toggle.

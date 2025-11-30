@@ -62,6 +62,31 @@
       flex-wrap: wrap;
     }
 
+    .toggle-group {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      background: rgba(148, 163, 184, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 0.5rem 0.65rem;
+      color: #cbd5e1;
+      font-weight: 600;
+    }
+
+    .toggle input {
+      accent-color: #22d3ee;
+      width: 18px;
+      height: 18px;
+    }
+
     button {
       background: linear-gradient(135deg, #2563eb, #1e3a8a);
       color: white;
@@ -217,6 +242,18 @@
       line-height: 1;
     }
 
+    .square .piece.attacker::before {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 999px;
+      border: 2px solid currentColor;
+      opacity: 0.35;
+      box-shadow: 0 0 0 4px currentColor, 0 0 18px 6px rgba(0, 0, 0, 0.2);
+      pointer-events: none;
+      z-index: -2;
+    }
+
     .square .piece.threatened::after {
       content: '';
       position: absolute;
@@ -258,34 +295,24 @@
       border-radius: 8px;
       border: 1px solid rgba(255, 255, 255, 0.12);
       color: #e2e8f0;
-      min-width: 38px;
+      min-width: 32px;
       text-align: center;
       pointer-events: none;
       box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
-      display: grid;
-      grid-template-columns: repeat(3, auto);
-      gap: 4px;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .attack-count .count {
       font-weight: 700;
-      line-height: 1;
-    }
-
-    .attack-count .white-count {
-      color: rgb(var(--white-attack));
-    }
-
-    .attack-count .black-count {
-      color: rgb(var(--black-attack));
     }
 
     .attack-count .diff {
-      color: #f8fafc;
-      font-weight: 600;
-      opacity: 0.85;
+      font-weight: 700;
+      opacity: 0.9;
+    }
+
+    .attack-count .diff.positive {
+      color: rgb(var(--white-attack));
+    }
+
+    .attack-count .diff.negative {
+      color: rgb(var(--black-attack));
     }
 
     .panel {
@@ -376,7 +403,7 @@
     <header>
       <div>
         <h1>Attack-Focused Chess</h1>
-        <p style="margin: 0; color: #cbd5e1;">Pieces stay hidden—only their attack paths paint the board.</p>
+        <p style="margin: 0; color: #cbd5e1;">Small, shaded pieces meet attack overlays you can toggle on demand.</p>
       </div>
       <div class="controls">
         <button id="newGame">New Game</button>
@@ -408,6 +435,11 @@
           <div class="pill" id="selectionDisplay">No square selected</div>
         </div>
         <p style="margin-top:0; color:#cbd5e1;">Click a piece, then click a highlighted destination. The black side is controlled by a simple auto-move opponent.</p>
+        <div class="toggle-group">
+          <label class="toggle"><input type="checkbox" id="showAllAttacks" checked />Show full-board attack shading</label>
+          <label class="toggle"><input type="checkbox" id="occupiedDiffOnly" />Only show attack numbers on occupied, attacked squares</label>
+          <label class="toggle"><input type="checkbox" id="showAttackingPieces" />Highlight pieces currently attacking an enemy</label>
+        </div>
         <div class="legend">
           <div class="legend-item"><span class="legend-swatch" style="background: rgba(var(--white-attack), 0.55);"></span>White control</div>
           <div class="legend-item"><span class="legend-swatch" style="background: rgba(var(--black-attack), 0.55);"></span>Black control</div>
@@ -426,6 +458,9 @@
     const turnDisplay = document.getElementById('turnDisplay');
     const selectionDisplay = document.getElementById('selectionDisplay');
     const movesEl = document.getElementById('moves');
+    const showAllAttacksToggle = document.getElementById('showAllAttacks');
+    const occupiedDiffOnlyToggle = document.getElementById('occupiedDiffOnly');
+    const showAttackingPiecesToggle = document.getElementById('showAttackingPieces');
 
     const ChessCtor = ChessModule?.Chess || ChessModule?.default || ChessModule;
     if (typeof ChessCtor !== 'function') {
@@ -444,6 +479,9 @@
     let selectedSquare = null;
     let moveHints = [];
     let aiThinking = false;
+    let showAllAttacks = true;
+    let showDiffOnlyWhenOccupied = false;
+    let highlightActiveAttackers = false;
 
     function squareToCoords(square) {
       const file = square.charCodeAt(0) - 'a'.charCodeAt(0);
@@ -460,6 +498,57 @@
       if (!map[square]) map[square] = { white: 0, black: 0 };
       if (color === 'w') map[square].white += 1;
       else map[square].black += 1;
+    }
+
+    function computePieceAttacks(square) {
+      const piece = chess.get(square);
+      if (!piece) return {};
+
+      const map = {};
+      const { file, rank } = squareToCoords(square);
+      const color = piece.color;
+      const type = piece.type;
+
+      const pushAttack = (f, r) => {
+        const target = coordsToSquare(f, r);
+        if (target) addAttack(map, target, color);
+      };
+
+      if (type === 'p') {
+        const forward = color === 'w' ? 1 : -1;
+        pushAttack(file + 1, rank + forward);
+        pushAttack(file - 1, rank + forward);
+      } else if (type === 'n') {
+        const knightMoves = [
+          [1, 2], [2, 1], [2, -1], [1, -2],
+          [-1, -2], [-2, -1], [-2, 1], [-1, 2]
+        ];
+        knightMoves.forEach(([df, dr]) => pushAttack(file + df, rank + dr));
+      } else if (type === 'k') {
+        const kingMoves = [
+          [1, 0], [-1, 0], [0, 1], [0, -1],
+          [1, 1], [1, -1], [-1, 1], [-1, -1]
+        ];
+        kingMoves.forEach(([df, dr]) => pushAttack(file + df, rank + dr));
+      } else {
+        const directions = [];
+        if (type === 'b' || type === 'q') directions.push([1, 1], [1, -1], [-1, 1], [-1, -1]);
+        if (type === 'r' || type === 'q') directions.push([1, 0], [-1, 0], [0, 1], [0, -1]);
+
+        directions.forEach(([df, dr]) => {
+          let f = file + df;
+          let r = rank + dr;
+          while (f >= 0 && f < 8 && r >= 0 && r < 8) {
+            const target = coordsToSquare(f, r);
+            addAttack(map, target, color);
+            if (chess.get(target)) break;
+            f += df;
+            r += dr;
+          }
+        });
+      }
+
+      return map;
     }
 
     function computeAttacks() {
@@ -530,8 +619,35 @@
       return attackMap;
     }
 
+    function findAttackingPieces() {
+      const attackers = new Set();
+
+      for (let file = 0; file < 8; file++) {
+        for (let rank = 0; rank < 8; rank++) {
+          const square = coordsToSquare(file, rank);
+          const piece = chess.get(square);
+          if (!piece) continue;
+
+          const map = computePieceAttacks(square);
+          const isAttacking = Object.keys(map).some((target) => {
+            const targetPiece = chess.get(target);
+            return targetPiece && targetPiece.color !== piece.color;
+          });
+
+          if (isAttacking) attackers.add(square);
+        }
+      }
+
+      return attackers;
+    }
+
     function updateBoard() {
-      const attackMap = computeAttacks();
+      const fullAttackMap = computeAttacks();
+      const displayAttackMap = showAllAttacks
+        ? fullAttackMap
+        : (selectedSquare ? computePieceAttacks(selectedSquare) : {});
+      const attackerSet = highlightActiveAttackers ? findAttackingPieces() : new Set();
+
       const squares = boardEl.querySelectorAll('.square');
 
       squares.forEach((squareEl) => {
@@ -541,7 +657,7 @@
         const targetMarker = squareEl.querySelector('.move-target');
         const pieceEl = squareEl.querySelector('.piece');
         const attackCount = squareEl.querySelector('.attack-count');
-        const attackInfo = attackMap[square] || { white: 0, black: 0 };
+        const attackInfo = displayAttackMap[square] || { white: 0, black: 0 };
         const whiteAttack = attackInfo.white || 0;
         const blackAttack = attackInfo.black || 0;
         const total = whiteAttack + blackAttack;
@@ -574,25 +690,24 @@
         }
 
         const piece = chess.get(square);
-        const threatened = piece && ((piece.color === 'w' && blackAttack > 0) || (piece.color === 'b' && whiteAttack > 0));
+        const threatened = piece && ((piece.color === 'w' && (fullAttackMap[square]?.black || 0) > 0) || (piece.color === 'b' && (fullAttackMap[square]?.white || 0) > 0));
         if (piece) {
           pieceEl.textContent = getUnicodePiece(piece);
           pieceEl.style.visibility = 'visible';
           pieceEl.style.color = piece.color === 'w' ? 'rgb(var(--white-attack))' : 'rgb(var(--black-attack))';
           pieceEl.classList.toggle('threatened', threatened);
+          pieceEl.classList.toggle('attacker', highlightActiveAttackers && attackerSet.has(square));
         } else {
           pieceEl.textContent = '';
           pieceEl.style.visibility = 'hidden';
           pieceEl.classList.remove('threatened');
+          pieceEl.classList.remove('attacker');
         }
 
-        if (total > 0) {
+        if (total > 0 && (!showDiffOnlyWhenOccupied || piece)) {
           const diff = whiteAttack - blackAttack;
-          attackCount.innerHTML = `
-            <span class="count white-count">${whiteAttack}</span>
-            <span class="diff">${diff > 0 ? `+${diff}` : diff}</span>
-            <span class="count black-count">${blackAttack}</span>
-          `;
+          const diffClass = diff > 0 ? 'positive' : 'negative';
+          attackCount.innerHTML = `<span class="diff ${diffClass}">${diff > 0 ? `+${diff}` : diff}</span>`;
           attackCount.style.visibility = 'visible';
         } else {
           attackCount.innerHTML = '';
@@ -763,6 +878,24 @@
       const bestMoves = scored.filter((s) => s.score === bestScore).map((s) => s.move);
       return bestMoves[Math.floor(Math.random() * bestMoves.length)];
     }
+
+    showAllAttacksToggle.addEventListener('change', () => {
+      showAllAttacks = showAllAttacksToggle.checked;
+      if (!showAllAttacks && !selectedSquare) {
+        moveHints = [];
+      }
+      updateBoard();
+    });
+
+    occupiedDiffOnlyToggle.addEventListener('change', () => {
+      showDiffOnlyWhenOccupied = occupiedDiffOnlyToggle.checked;
+      updateBoard();
+    });
+
+    showAttackingPiecesToggle.addEventListener('change', () => {
+      highlightActiveAttackers = showAttackingPiecesToggle.checked;
+      updateBoard();
+    });
 
     document.getElementById('newGame').addEventListener('click', () => {
       chess.reset();
