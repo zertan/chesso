@@ -555,7 +555,7 @@
         selectionDisplay.textContent = 'AI is thinking — please wait.';
         return;
       }
-      if (chess.game_over()) {
+      if (chess.isGameOver()) {
         selectionDisplay.textContent = 'Game over. Start a new game to continue.';
         return;
       }
@@ -611,7 +611,7 @@
     }
 
     function maybeAIMove() {
-      if (chess.game_over()) return;
+      if (chess.isGameOver()) return;
       if (chess.turn() !== aiColor) return;
 
       aiThinking = true;
