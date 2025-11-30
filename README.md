@@ -10,6 +10,7 @@ Open `index.html` in your browser. No build tools required.
 - Click the same square again to deselect if you change your mind.
 - The black side auto-plays with a simple capture-seeking AI after each of your moves.
 - Use **Undo** to step back (it undoes your move and the AI reply) or **New Game** to reset the position.
+- Any piece that currently sits inside an opposing attack path is ringed in green so you can spot threats immediately.
 
 Color legend:
 - Pink/red tint: squares controlled by White.
