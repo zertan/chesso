@@ -303,6 +303,7 @@
           <div class="pill" id="turnDisplay">Turn: White</div>
           <div class="pill" id="selectionDisplay">No square selected</div>
         </div>
+        <p style="margin-top:0; color:#cbd5e1;">Click a piece, then click a highlighted destination. The black side is controlled by a simple auto-move opponent.</p>
         <div class="legend">
           <div class="legend-item"><span class="legend-swatch" style="background: rgba(var(--white-attack), 0.55);"></span>White control</div>
           <div class="legend-item"><span class="legend-swatch" style="background: rgba(var(--black-attack), 0.55);"></span>Black control</div>
@@ -328,8 +329,10 @@
     }
 
     const chess = new Chess();
+    const aiColor = 'b';
     let selectedSquare = null;
     let moveHints = [];
+    let aiThinking = false;
 
     function squareToCoords(square) {
       const file = square.charCodeAt(0) - 'a'.charCodeAt(0);
@@ -548,10 +551,25 @@
     }
 
     function handleSquareClick(square) {
+      if (aiThinking) {
+        selectionDisplay.textContent = 'AI is thinking — please wait.';
+        return;
+      }
+      if (chess.game_over()) {
+        selectionDisplay.textContent = 'Game over. Start a new game to continue.';
+        return;
+      }
+
       const piece = chess.get(square);
       if (!selectedSquare) {
         if (!piece) {
           selectionDisplay.textContent = `${square.toUpperCase()}: empty square`;
+          moveHints = [];
+          updateBoard();
+          return;
+        }
+        if (piece.color !== chess.turn()) {
+          selectionDisplay.textContent = `It's ${chess.turn() === 'w' ? 'White' : 'Black'}'s turn.`;
           moveHints = [];
           updateBoard();
           return;
@@ -566,6 +584,11 @@
       const move = chess.move({ from: selectedSquare, to: square, promotion: 'q' });
       if (move) {
         selectionDisplay.textContent = `${move.san} played`;
+        selectedSquare = null;
+        moveHints = [];
+        updateBoard();
+        maybeAIMove();
+        return;
       } else if (piece) {
         selectedSquare = square;
         selectionDisplay.textContent = `${square.toUpperCase()}: ${piece.color === 'w' ? 'White' : 'Black'} ${piece.type.toUpperCase()}`;
@@ -579,24 +602,65 @@
       updateBoard();
     }
 
+    function maybeAIMove() {
+      if (chess.game_over()) return;
+      if (chess.turn() !== aiColor) return;
+
+      aiThinking = true;
+      selectionDisplay.textContent = 'AI (black) is calculating...';
+      moveHints = [];
+      selectedSquare = null;
+
+      setTimeout(() => {
+        const move = pickAIMove();
+        if (move) {
+          chess.move(move);
+          selectionDisplay.textContent = `AI played ${move.san}`;
+        } else {
+          selectionDisplay.textContent = 'AI has no legal moves.';
+        }
+        aiThinking = false;
+        updateBoard();
+      }, 250);
+    }
+
+    function pickAIMove() {
+      const moves = chess.moves({ verbose: true });
+      if (!moves.length) return null;
+
+      const values = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+      const scored = moves.map((m) => ({
+        move: m,
+        score: (m.captured ? values[m.captured] * 10 : 0) + (m.flags.includes('c') ? 1 : 0) + (m.san.includes('+') ? 2 : 0),
+      }));
+      const bestScore = Math.max(...scored.map((s) => s.score));
+      const bestMoves = scored.filter((s) => s.score === bestScore).map((s) => s.move);
+      return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+    }
+
     document.getElementById('newGame').addEventListener('click', () => {
       chess.reset();
       selectedSquare = null;
       moveHints = [];
+      aiThinking = false;
       selectionDisplay.textContent = 'No square selected';
       updateBoard();
+      if (chess.turn() === aiColor) maybeAIMove();
     });
 
     document.getElementById('undo').addEventListener('click', () => {
       chess.undo();
+      chess.undo();
       selectedSquare = null;
       moveHints = [];
+      aiThinking = false;
       selectionDisplay.textContent = 'No square selected';
       updateBoard();
     });
 
     buildBoard();
     updateBoard();
+    if (chess.turn() === aiColor) maybeAIMove();
   </script>
 </body>
 </html>
