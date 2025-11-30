@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Attack-Focused Chess Board</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231e293b'/%3E%3Cpath d='M20 48h24l-4-22h-4v-4h4V14H24v8h4v4h-4z' fill='%23cbd5e1'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <style>
     :root {
@@ -135,6 +136,20 @@
       transition: background 0.2s ease;
     }
 
+    .square .piece {
+      position: relative;
+      z-index: 1;
+      font-size: 1.25rem;
+      opacity: 0.82;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+      padding: 6px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      min-width: 30px;
+      text-align: center;
+    }
+
     .square .highlight {
       position: absolute;
       inset: 4px;
@@ -165,6 +180,22 @@
       border-radius: 10px;
       border: 1px solid rgba(255, 255, 255, 0.1);
       pointer-events: none;
+    }
+
+    .square .attack-count {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      font-size: 0.7rem;
+      background: rgba(15, 23, 42, 0.75);
+      padding: 2px 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e2e8f0;
+      min-width: 18px;
+      text-align: center;
+      pointer-events: none;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
     }
 
     .panel {
@@ -290,6 +321,11 @@
     const selectionDisplay = document.getElementById('selectionDisplay');
     const movesEl = document.getElementById('moves');
 
+    if (typeof Chess === 'undefined') {
+      boardEl.innerHTML = '<div style="padding:1rem; color:#ef4444;">Chess.js failed to load. Please check your connection and refresh.</div>';
+      throw new Error('Chess.js failed to load');
+    }
+
     const chess = new Chess();
     let selectedSquare = null;
     let moveHints = [];
@@ -388,7 +424,9 @@
         const overlay = squareEl.querySelector('.overlay');
         const highlight = squareEl.querySelector('.highlight');
         const targetMarker = squareEl.querySelector('.move-target');
+        const pieceEl = squareEl.querySelector('.piece');
         const meta = squareEl.querySelector('.meta');
+        const attackCount = squareEl.querySelector('.attack-count');
         const attackInfo = attackMap[square] || { white: 0, black: 0 };
 
         const total = attackInfo.white + attackInfo.black;
@@ -423,9 +461,17 @@
         const piece = chess.get(square);
         if (piece) {
           meta.textContent = `${piece.color === 'w' ? 'W' : 'B'}${piece.type.toUpperCase()}`;
+          pieceEl.textContent = getUnicodePiece(piece);
+          pieceEl.style.visibility = 'visible';
+          pieceEl.style.color = piece.color === 'w' ? '#f8fafc' : '#cbd5e1';
         } else {
           meta.textContent = '';
+          pieceEl.textContent = '';
+          pieceEl.style.visibility = 'hidden';
         }
+
+        attackCount.textContent = total > 0 ? total : '';
+        attackCount.style.visibility = total > 0 ? 'visible' : 'hidden';
       });
 
       turnDisplay.textContent = `Turn: ${chess.turn() === 'w' ? 'White' : 'Black'}`;
@@ -440,6 +486,18 @@
       const [r1, g1, b1] = [255, 99, 132];
       const [r2, g2, b2] = [99, 132, 255];
       return `${mix(r1, r2)}, ${mix(g1, g2)}, ${mix(b1, b2)}`;
+    }
+
+    function getUnicodePiece(piece) {
+      const symbols = {
+        w: {
+          p: '♙', r: '♖', n: '♘', b: '♗', q: '♕', k: '♔'
+        },
+        b: {
+          p: '♟', r: '♜', n: '♞', b: '♝', q: '♛', k: '♚'
+        },
+      };
+      return symbols[piece.color][piece.type] || '';
     }
 
     function renderMoves() {
@@ -469,6 +527,14 @@
           const overlay = document.createElement('div');
           overlay.className = 'overlay';
           squareEl.appendChild(overlay);
+
+          const attackCount = document.createElement('div');
+          attackCount.className = 'attack-count';
+          squareEl.appendChild(attackCount);
+
+          const pieceEl = document.createElement('div');
+          pieceEl.className = 'piece';
+          squareEl.appendChild(pieceEl);
 
           const meta = document.createElement('div');
           meta.className = 'meta';
