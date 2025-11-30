@@ -1,6 +1,6 @@
 # Chesso Attack Board
 
-A minimalist chess experience that foregrounds control. Small, shaded pieces sit on top of tinted attack maps so you can see both the position and the pressure on every square at a glance. The board runs directly in the browser and is locked to the chess.js 1.4.0 API so all rules and move generation stay correct.
+A minimalist chess experience that foregrounds control. Small, shaded pieces sit on a gray/white board with coordinates on every edge, and they’re tinted red (White) or blue (Black) to match the attack overlays so you can see both the position and the pressure on every square at a glance. The board runs directly in the browser and is locked to the chess.js 1.4.0 API so all rules and move generation stay correct.
 
 ## Running
 Open `index.html` in your browser. No build tools required.

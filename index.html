@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <style>
     :root {
-      --light: #f0d9b5;
-      --dark: #b58863;
+      --light: #f8fafc;
+      --dark: #cbd5e1;
       --white-attack: 255, 99, 132;
       --black-attack: 99, 132, 255;
       --both-attack: 165, 99, 255;
@@ -97,6 +97,15 @@
       align-items: start;
     }
 
+    .board-shell {
+      display: grid;
+      grid-template-columns: 28px 1fr 28px;
+      grid-template-rows: 28px 1fr 28px;
+      width: 100%;
+      position: relative;
+      gap: 0;
+    }
+
     .board {
       display: grid;
       grid-template-columns: repeat(8, minmax(40px, 1fr));
@@ -107,6 +116,60 @@
       overflow: hidden;
       position: relative;
       box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+      grid-column: 2;
+      grid-row: 2;
+      width: 100%;
+      height: 100%;
+    }
+
+    .file-labels,
+    .rank-labels {
+      font-weight: 700;
+      color: rgba(148, 163, 184, 0.95);
+      font-size: 0.85rem;
+      pointer-events: none;
+      user-select: none;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    .file-labels {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-column: 2;
+      gap: 0;
+      text-align: center;
+    }
+
+    .file-labels.top {
+      grid-row: 1;
+      align-self: end;
+      padding-bottom: 4px;
+    }
+
+    .file-labels.bottom {
+      grid-row: 3;
+      align-self: start;
+      padding-top: 4px;
+    }
+
+    .rank-labels {
+      display: grid;
+      grid-template-rows: repeat(8, 1fr);
+      grid-row: 2;
+      gap: 0;
+      align-items: center;
+    }
+
+    .rank-labels.left {
+      grid-column: 1;
+      justify-self: end;
+      padding-right: 6px;
+    }
+
+    .rank-labels.right {
+      grid-column: 3;
+      justify-self: start;
+      padding-left: 6px;
     }
 
     .square {
@@ -140,7 +203,7 @@
       position: relative;
       z-index: 1;
       font-size: 1.15rem;
-      opacity: 0.82;
+      opacity: 0.88;
       filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
       padding: 0;
       border-radius: 0;
@@ -319,7 +382,21 @@
     </header>
 
     <div class="board-wrap">
-      <section class="board" id="board" aria-label="Chessboard showing attack map"></section>
+      <section class="board-shell" aria-label="Chessboard with coordinates">
+        <div class="file-labels top" aria-hidden="true">
+          <span>A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span><span>G</span><span>H</span>
+        </div>
+        <div class="rank-labels left" aria-hidden="true">
+          <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span>
+        </div>
+        <section class="board" id="board" aria-label="Chessboard showing attack map"></section>
+        <div class="rank-labels right" aria-hidden="true">
+          <span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span>
+        </div>
+        <div class="file-labels bottom" aria-hidden="true">
+          <span>A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span><span>G</span><span>H</span>
+        </div>
+      </section>
 
       <section class="panel">
         <h2>Game + Attack Details</h2>
@@ -499,7 +576,7 @@
           meta.textContent = `${piece.color === 'w' ? 'W' : 'B'}${piece.type.toUpperCase()}`;
           pieceEl.textContent = getUnicodePiece(piece);
           pieceEl.style.visibility = 'visible';
-          pieceEl.style.color = piece.color === 'w' ? '#f8fafc' : '#cbd5e1';
+          pieceEl.style.color = piece.color === 'w' ? 'rgb(var(--white-attack))' : 'rgb(var(--black-attack))';
         } else {
           meta.textContent = '';
           pieceEl.textContent = '';
